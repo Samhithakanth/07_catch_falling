@@ -2,9 +2,11 @@
 FallingObject: a simple object that falls straight down.
 """
 
+FALLING_OBJECT_RADIUS = 14
+
 
 class FallingObject:
-    def __init__(self, x, y, radius=14, speed=3, color=(230, 140, 60)):
+    def __init__(self, x, y, radius=FALLING_OBJECT_RADIUS, speed=3, color=(230, 140, 60)):
         self.x = x
         self.y = y
         self.radius = radius

@@ -12,12 +12,16 @@ import random
 import pygame
 
 from game.basket import Basket
-from game.falling_object import FallingObject
+from game.falling_object import FALLING_OBJECT_RADIUS, FallingObject
 from game.collision import is_caught
 from game.renderer import WIDTH, HEIGHT
 
-SPAWN_INTERVAL_FRAMES = 50
+MIN_SPAWN_INTERVAL_FRAMES = 35
+MAX_SPAWN_INTERVAL_FRAMES = 65
+MIN_SPAWN_DISTANCE = 60
+MAX_ACTIVE_OBJECTS = 5
 MAX_MISSES = 5
+BOOST_DURATION_FRAMES = 180
 
 
 class GameEngine:
@@ -25,13 +29,22 @@ class GameEngine:
         self.basket = Basket(x=WIDTH / 2, y=HEIGHT - 30)
         self.objects = []
         self.frames_until_spawn = 0
+        self.last_spawn_x = None
         self.score = 0
         self.misses = 0
         self.game_over = False
 
     def _spawn_object(self):
-        x = random.randint(20, WIDTH - 20)
-        self.objects.append(FallingObject(x=x, y=-14, speed=3))
+        min_x = FALLING_OBJECT_RADIUS
+        max_x = WIDTH - FALLING_OBJECT_RADIUS
+        x = random.randint(min_x, max_x)
+        while self.last_spawn_x is not None and abs(x - self.last_spawn_x) < MIN_SPAWN_DISTANCE:
+            x = random.randint(min_x, max_x)
+
+        self.last_spawn_x = x
+        self.objects.append(FallingObject(
+            x=x, y=FALLING_OBJECT_RADIUS, speed=3,
+        ))
 
     def handle_input(self, keys_pressed):
         if self.game_over:
@@ -50,15 +63,26 @@ class GameEngine:
     def handle_keydown(self, key):
         if self.game_over and key == pygame.K_r:
             self.__init__()
+        elif not self.game_over and key == pygame.K_SPACE:
+            self.basket.boosted_frames = BOOST_DURATION_FRAMES
+            self.basket.speed = self.basket.boost_speed
 
     def update(self):
         if self.game_over:
             return
 
+        if self.basket.boosted_frames > 0:
+            self.basket.boosted_frames -= 1
+            if self.basket.boosted_frames == 0:
+                self.basket.speed = self.basket.normal_speed
+
         self.frames_until_spawn -= 1
         if self.frames_until_spawn <= 0:
-            self._spawn_object()
-            self.frames_until_spawn = SPAWN_INTERVAL_FRAMES
+            if len(self.objects) < MAX_ACTIVE_OBJECTS:
+                self._spawn_object()
+            self.frames_until_spawn = random.randint(
+                MIN_SPAWN_INTERVAL_FRAMES, MAX_SPAWN_INTERVAL_FRAMES,
+            )
 
         for obj in self.objects:
             obj.update()
@@ -86,6 +110,9 @@ class GameEngine:
         renderer.draw_scene(surface, self.basket, self.objects)
         renderer.draw_text(surface, font, f"Score: {self.score}", (10, 10))
         renderer.draw_text(surface, font, f"Misses: {self.misses}/{MAX_MISSES}", (10, 36))
+
+        if self.basket.boosted_frames > 0:
+            renderer.draw_text(surface, font, "SPEED BOOST!", (10, 62))
 
         if self.game_over:
             renderer.draw_banner(surface, font, f"Game Over! Final score: {self.score}. Press R to restart.")
